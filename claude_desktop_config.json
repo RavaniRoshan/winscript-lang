@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "winscript": {
+      "command": "python",
+      "args": ["-m", "winscript.mcp_server"],
+      "cwd": "c:\\Users\\Admin\\OneDrive\\Documents\\GitHub\\winlang2\\winscript-lang",
+      "env": {
+        "PYTHONPATH": "c:\\Users\\Admin\\OneDrive\\Documents\\GitHub\\winlang2\\winscript-lang"
+      }
+    }
+  }
+}

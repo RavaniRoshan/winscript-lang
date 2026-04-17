@@ -1,0 +1,356 @@
+# chrome.wsdict — WinScript Dictionary for Google Chrome
+# WinScript Dictionary Format v1.0
+#
+# Reference implementation — shows contributors exactly how to write
+# a .wsdict file for any Windows application.
+#
+# Backend: CDP (Chrome DevTools Protocol) over WebSocket on port 9222
+# Author: winscript-core
+# CDP Spec: https://chromedevtools.github.io/devtools-protocol/
+#
+# Naming conventions:
+#   cdp_method     — raw CDP domain.method call (e.g. Page.navigate)
+#   _winscript_*   — higher-level methods implemented in CDPBackend that
+#                    wrap multiple CDP calls into one smart operation
+
+meta:
+  name: Chrome
+  display_name: "Google Chrome"
+  version: "1.0"
+  author: "winscript-core"
+  description: >
+    Full Chrome automation via the Chrome DevTools Protocol.
+    Requires Chrome launched with --remote-debugging-port=9222.
+  backend: cdp
+  homepage: "https://github.com/winscript/dicts"
+
+connection:
+  method: cdp_websocket
+  host: "localhost"
+  port: 9222
+  launch_command: "chrome.exe --remote-debugging-port=9222 --no-first-run --no-default-browser-check"
+  launch_wait_ms: 2500
+  http_endpoint: "http://localhost:9222/json"
+
+# ──────────────────────────────────────────────────────────────────────────────
+# OBJECT MODEL
+# ──────────────────────────────────────────────────────────────────────────────
+
+objects:
+
+  # ── Browser ─────────────────────────────────────────────────────────────────
+  Browser:
+    description: >
+      The Chrome browser application. This is the root object for all
+      tell Chrome ... end tell blocks. Commands here affect the whole browser.
+    is_root: true
+
+    properties:
+      - name: active_tab
+        type: Tab
+        description: "The currently focused tab in the foreground window."
+        cdp_method: "_winscript_get_active_tab"
+
+      - name: tabs
+        type: "list[Tab]"
+        description: "All open tabs across all windows."
+        cdp_method: "Target.getTargets"
+
+      - name: version
+        type: string
+        description: "The browser version string (e.g. 'Chrome/120.0.0.0')."
+        cdp_method: "Browser.getVersion"
+        cdp_expression: "product"
+
+      - name: windows
+        type: "list[Window]"
+        description: "All open browser windows."
+        cdp_method: "_winscript_get_windows"
+
+    commands:
+      - name: open
+        syntax: "open {url: string}"
+        description: >
+          Open a URL in a new tab and switch to it.
+          Example: open "https://github.com"
+        cdp_method: "Target.createTarget"
+        args:
+          - name: url
+            type: string
+            required: true
+
+      - name: new_tab
+        syntax: "new tab"
+        description: >
+          Open a blank new tab without navigating anywhere.
+          Example: new tab
+        cdp_method: "Target.createTarget"
+        args: []
+
+      - name: close_tab
+        syntax: "close tab"
+        description: >
+          Close the currently active tab.
+          Example: close tab
+        cdp_method: "Target.closeTarget"
+        args: []
+
+      - name: quit
+        syntax: "quit"
+        description: >
+          Close the entire browser.
+          Example: quit
+        cdp_method: "Browser.close"
+        args: []
+
+  # ── Tab ─────────────────────────────────────────────────────────────────────
+  Tab:
+    description: >
+      A single browser tab. All navigation, interaction, and DOM access
+      happens through Tab commands. Inside a tell Chrome block, commands
+      are automatically routed to the active tab.
+    is_root: false
+
+    properties:
+      - name: title
+        type: string
+        description: "The document title shown in the browser tab."
+        cdp_method: "Runtime.evaluate"
+        cdp_expression: "document.title"
+
+      - name: url
+        type: string
+        description: "The full URL of the currently loaded page."
+        cdp_method: "Runtime.evaluate"
+        cdp_expression: "location.href"
+
+      - name: loaded
+        type: bool
+        description: >
+          True when document.readyState is 'complete'.
+          Use in: wait until loaded
+        cdp_method: "Runtime.evaluate"
+        cdp_expression: "document.readyState === 'complete'"
+
+      - name: content
+        type: string
+        description: "The visible text content of the page (document.body.innerText)."
+        cdp_method: "Runtime.evaluate"
+        cdp_expression: "document.body.innerText"
+
+      - name: html
+        type: string
+        description: "The full outer HTML of the page."
+        cdp_method: "Runtime.evaluate"
+        cdp_expression: "document.documentElement.outerHTML"
+
+    commands:
+      - name: navigate
+        syntax: "navigate to {url: string}"
+        description: >
+          Navigate the tab to a URL. Blocks until the browser accepts the
+          navigation request (not until the page finishes loading).
+          Use 'wait until loaded' afterwards if you need the page ready.
+          Example: navigate to "https://github.com"
+        cdp_method: "Page.navigate"
+        args:
+          - name: url
+            type: string
+            required: true
+
+      - name: click
+        syntax: "click element {selector: string}"
+        description: >
+          Click a DOM element identified by selector.
+          The selector can be:
+            - CSS selector:  "button.primary"
+            - Visible text:  "Sign In"
+            - XPath:         "//button[@id='submit']"
+          The runtime tries each strategy in order until one works.
+          Example: click element "Sign In"
+        cdp_method: "_winscript_click"
+        args:
+          - name: selector
+            type: string
+            required: true
+
+      - name: type
+        syntax: "type {text: string} into element {selector: string}"
+        description: >
+          Focus an input element and type text into it character by character.
+          Clears any existing value first.
+          Example: type "winscript" into element "input[name='q']"
+        cdp_method: "_winscript_type"
+        args:
+          - name: text
+            type: string
+            required: true
+          - name: selector
+            type: string
+            required: true
+
+      - name: press
+        syntax: "press {key: string}"
+        description: >
+          Dispatch a keyboard event. Use key names from the UI Events spec:
+          "Enter", "Tab", "Escape", "ArrowDown", "Backspace", "F5", etc.
+          Example: press "Enter"
+        cdp_method: "Input.dispatchKeyEvent"
+        args:
+          - name: key
+            type: string
+            required: true
+
+      - name: run_script
+        syntax: "run script {code: string}"
+        description: >
+          Execute arbitrary JavaScript in the tab's context and return
+          the result as a string.
+          Example: run script "document.querySelectorAll('a').length"
+        cdp_method: "Runtime.evaluate"
+        args:
+          - name: code
+            type: string
+            required: true
+
+      - name: screenshot
+        syntax: "take screenshot"
+        description: >
+          Capture a full-page PNG screenshot. Returns base64-encoded image data.
+          Example: take screenshot
+        cdp_method: "Page.captureScreenshot"
+        args: []
+
+      - name: wait_until_loaded
+        syntax: "wait until loaded"
+        description: >
+          Poll document.readyState every 500 ms until it equals 'complete'.
+          Raises WinScriptTimeoutError after 10 seconds by default.
+          Example: wait until loaded
+        cdp_method: "_winscript_wait_loaded"
+        args: []
+
+      - name: find_element
+        syntax: "find element {selector: string}"
+        description: >
+          Find a DOM element by selector and return its visible text content.
+          Returns empty string if the element is not found.
+          Example: find element "h1"
+        cdp_method: "_winscript_find_element"
+        args:
+          - name: selector
+            type: string
+            required: true
+
+      - name: scroll
+        syntax: "scroll to {target: string}"
+        description: >
+          Scroll the page to a target. Target can be:
+            - "top"      — scroll to the very top
+            - "bottom"   — scroll to the very bottom
+            - CSS/text selector — scroll that element into view
+          Example: scroll to "bottom"
+          Example: scroll to "#comments"
+        cdp_method: "_winscript_scroll"
+        args:
+          - name: target
+            type: string
+            required: true
+
+      - name: get_attribute
+        syntax: "get attribute {attr: string} of element {selector: string}"
+        description: >
+          Read a DOM attribute from the first matching element.
+          Example: get attribute "href" of element "a.primary-link"
+        cdp_method: "_winscript_get_attribute"
+        args:
+          - name: attr
+            type: string
+            required: true
+          - name: selector
+            type: string
+            required: true
+
+      - name: fill_form
+        syntax: "fill form field {selector: string} with {value: string}"
+        description: >
+          Fill a form field (input, textarea, select) with a value.
+          Handles all input types including dropdowns and checkboxes.
+          Dispatches native input/change events so React/Vue forms respond.
+          Example: fill form field "#email" with "user@example.com"
+        cdp_method: "_winscript_fill_form"
+        args:
+          - name: selector
+            type: string
+            required: true
+          - name: value
+            type: string
+            required: true
+
+  # ── DOM ─────────────────────────────────────────────────────────────────────
+  DOM:
+    description: >
+      Advanced DOM query interface. Use this for bulk element queries
+      and arbitrary JavaScript evaluation beyond what Tab commands expose.
+    is_root: false
+
+    properties: []
+
+    commands:
+      - name: query
+        syntax: "query {selector: string}"
+        description: >
+          Query all DOM elements matching a CSS selector.
+          Returns a list of their text content values.
+          Example: query "ul.nav > li"
+        cdp_method: "_winscript_query_all"
+        args:
+          - name: selector
+            type: string
+            required: true
+
+      - name: evaluate
+        syntax: "evaluate {expression: string}"
+        description: >
+          Evaluate a JavaScript expression in the page context and return
+          the serialised result. More powerful than 'run script' — returns
+          structured data (objects, arrays) not just strings.
+          Example: evaluate "Array.from(document.links).map(a => a.href)"
+        cdp_method: "Runtime.evaluate"
+        args:
+          - name: expression
+            type: string
+            required: true
+
+# ──────────────────────────────────────────────────────────────────────────────
+# ERROR CODES
+# ──────────────────────────────────────────────────────────────────────────────
+
+errors:
+  - code: "connection_refused"
+    message: "Chrome is not running with remote debugging enabled"
+    hint: >
+      Start Chrome with --remote-debugging-port=9222.
+      On Windows: chrome.exe --remote-debugging-port=9222
+
+  - code: "element_not_found"
+    message: "Could not find element matching selector"
+    hint: >
+      Try a different selector strategy: CSS, visible text, or XPath.
+      Use 'run script "document.querySelector(...)"' to debug.
+
+  - code: "navigation_failed"
+    message: "Page failed to load or returned an error status"
+    hint: "Check the URL and network connectivity."
+
+  - code: "timeout"
+    message: "Operation timed out"
+    hint: >
+      The default timeout is 10 seconds for wait conditions.
+      The page may be slow or the condition may never be true.
+
+  - code: "javascript_error"
+    message: "JavaScript execution raised an exception"
+    hint: >
+      The expression passed to 'run script' or 'evaluate' threw an error.
+      Check the JS expression for syntax or runtime errors.

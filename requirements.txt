@@ -1,0 +1,12 @@
+# Core
+lark>=1.1
+websockets>=12.0
+pyyaml>=6.0
+fastmcp>=2.0
+
+# Windows backends (optional — install on Windows only)
+# pywin32>=306       # COM backend (Excel, Word, Outlook)
+# pywinauto>=0.6.8   # UIA backend (native Win32 apps)
+
+# Testing
+pytest>=8.0

@@ -1,0 +1,140 @@
+// WinScript v1 Grammar
+// Language: tell/end tell, set, return, wait, try/catch
+// Parser: Lark (Earley)
+
+start: (_NL | statement)*
+
+// ---------------------------------------------------------------------------
+// Statements
+// ---------------------------------------------------------------------------
+
+?statement: tell_block
+          | set_stmt
+          | return_stmt
+          | wait_stmt
+          | try_block
+          | if_block
+          | command_stmt
+
+// ---------------------------------------------------------------------------
+// Construct 1 — tell blocks
+// ---------------------------------------------------------------------------
+
+tell_block: "tell" app_name _NL statement* "end" "tell" _NL
+
+app_name: IDENT ("." IDENT)*
+
+// ---------------------------------------------------------------------------
+// Construct 2 — set (variable assignment / property mutation)
+// ---------------------------------------------------------------------------
+
+set_stmt: "set" property_access "to" expr _NL   -> set_property
+        | "set" IDENT "to" expr _NL              -> set_variable
+
+// ---------------------------------------------------------------------------
+// Construct 3 — return
+// ---------------------------------------------------------------------------
+
+return_stmt: "return" expr _NL
+
+// ---------------------------------------------------------------------------
+// Construct 4 — wait
+// ---------------------------------------------------------------------------
+
+wait_stmt: "wait" "until" condition _NL          -> wait_until
+         | "wait" NUMBER time_unit _NL           -> wait_duration
+
+time_unit: "seconds"      -> seconds
+         | "milliseconds" -> milliseconds
+
+// ---------------------------------------------------------------------------
+// Construct 5 — try / catch / end try
+// ---------------------------------------------------------------------------
+
+try_block: "try" _NL statement* "catch" IDENT _NL statement* "end" "try" _NL
+
+// ---------------------------------------------------------------------------
+// if / then / end if  (single-condition only in v1)
+// ---------------------------------------------------------------------------
+
+if_block: "if" condition "then" _NL statement* "end" "if" _NL
+
+// ---------------------------------------------------------------------------
+// Conditions
+// ---------------------------------------------------------------------------
+
+?condition: expr "contains" expr                 -> contains_cond
+          | expr "is" "greater" "than" expr      -> gt_cond
+          | expr "is" "less" "than" expr         -> lt_cond
+          | expr "is" expr                       -> eq_cond
+          | "loaded"                             -> loaded_cond
+
+// ---------------------------------------------------------------------------
+// Commands  (dispatched to current tell scope)
+// ---------------------------------------------------------------------------
+
+command_stmt: navigate_cmd _NL
+            | click_cmd _NL
+            | type_cmd _NL
+            | press_cmd _NL
+            | screenshot_cmd _NL
+            | open_cmd _NL
+            | run_script_cmd _NL
+            | save_cmd _NL
+            | quit_cmd _NL
+            | generic_cmd _NL
+
+navigate_cmd:    "navigate" "to" expr
+click_cmd:       "click" "element" expr
+type_cmd:        "type" expr "into" "element" expr
+press_cmd:       "press" expr
+screenshot_cmd:  "take" "screenshot"
+open_cmd:        "open" expr
+run_script_cmd:  "run" "script" expr
+save_cmd:        "save"
+quit_cmd:        "quit"
+generic_cmd:     IDENT (expr)+
+
+// ---------------------------------------------------------------------------
+// Property access — "title of active tab"
+// ---------------------------------------------------------------------------
+
+property_access: IDENT "of" compound_name
+
+compound_name: IDENT (IDENT)*
+
+// ---------------------------------------------------------------------------
+// Expressions
+// ---------------------------------------------------------------------------
+
+?expr: atom "&" expr                             -> concat
+     | atom
+
+?atom: ESCAPED_STRING                            -> string_lit
+     | NUMBER                                    -> number_lit
+     | "true"                                    -> true_lit
+     | "false"                                   -> false_lit
+     | property_access                           -> prop_expr
+     | IDENT                                     -> ident_expr
+
+// ---------------------------------------------------------------------------
+// Terminals
+// ---------------------------------------------------------------------------
+
+IDENT: /(?!(?:if|tell|set|return|wait|try|catch|end|true|false|of|then|is|contains|loaded)\b)[a-zA-Z_][a-zA-Z0-9_]*/
+
+// Newline handling — newlines are significant as statement terminators
+_NL: NEWLINE+
+NEWLINE: /\r?\n/
+
+// Comments start with --
+COMMENT: /--[^\n]*/
+
+// Imports from Lark common terminals
+%import common.ESCAPED_STRING
+%import common.NUMBER
+
+// Ignore horizontal whitespace and comments
+%ignore /[ \t]+/
+%ignore COMMENT
+
