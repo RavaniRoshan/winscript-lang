@@ -1,5 +1,5 @@
-// WinScript v1 Grammar
-// Language: tell/end tell, set, return, wait, try/catch
+// WinScript v1 & v2 Grammar
+// Language: tell/end tell, set, return, wait, try/catch, repeat, on, declare
 // Parser: Lark (Earley)
 
 start: (_NL | statement)*
@@ -15,12 +15,18 @@ start: (_NL | statement)*
           | try_block
           | if_block
           | command_stmt
+          | repeat_block
+          | function_def
+          | scope_declaration
+          | declare_statement
+          | using_statement
+          | function_call _NL
 
 // ---------------------------------------------------------------------------
 // Construct 1 — tell blocks
 // ---------------------------------------------------------------------------
 
-tell_block: "tell" app_name _NL statement* "end" "tell" _NL
+tell_block: "tell" app_name ESCAPED_STRING? _NL statement* "end" "tell" _NL
 
 app_name: IDENT ("." IDENT)*
 
@@ -60,6 +66,38 @@ try_block: "try" _NL statement* "catch" IDENT _NL statement* "end" "try" _NL
 if_block: "if" condition "then" _NL statement* "end" "if" _NL
 
 // ---------------------------------------------------------------------------
+// V2 Constructs
+// ---------------------------------------------------------------------------
+
+repeat_block: repeat_times
+            | repeat_while
+            | repeat_with
+
+repeat_times: "repeat" expr "times" _NL statement* "end" "repeat" _NL
+
+repeat_while: "repeat" "while" condition _NL statement* "end" "repeat" _NL
+
+repeat_with: "repeat" "with" IDENT "in" expr _NL statement* "end" "repeat" _NL
+
+function_def: "on" IDENT "(" param_list? ")" _NL statement* "end" "on" _NL
+
+param_list: IDENT ("," IDENT)*
+
+function_call: IDENT "(" arg_list? ")"
+
+arg_list: expr ("," expr)*
+
+!scope_declaration: ("global" | "local") IDENT _NL
+
+declare_statement: "declare" IDENT "as" type_name _NL
+
+!type_name: "string" | "integer" | "decimal" | "boolean" | "list" | "dict" | "any"
+
+using_statement: "using" ESCAPED_STRING _NL
+
+list_literal: "[" (expr ("," expr)*)? "]"
+
+// ---------------------------------------------------------------------------
 // Conditions
 // ---------------------------------------------------------------------------
 
@@ -67,6 +105,9 @@ if_block: "if" condition "then" _NL statement* "end" "if" _NL
           | expr "is" "greater" "than" expr      -> gt_cond
           | expr "is" "less" "than" expr         -> lt_cond
           | expr "is" expr                       -> eq_cond
+          | expr ">" expr                        -> gt_op_cond
+          | expr ">=" expr                       -> gte_op_cond
+          | expr "!=" expr                       -> neq_op_cond
           | "loaded"                             -> loaded_cond
 
 // ---------------------------------------------------------------------------
@@ -93,7 +134,7 @@ open_cmd:        "open" expr
 run_script_cmd:  "run" "script" expr
 save_cmd:        "save"
 quit_cmd:        "quit"
-generic_cmd:     IDENT (expr)+
+generic_cmd:     IDENT (expr)*
 
 // ---------------------------------------------------------------------------
 // Property access — "title of active tab"
@@ -101,13 +142,21 @@ generic_cmd:     IDENT (expr)+
 
 property_access: IDENT "of" compound_name
 
-compound_name: IDENT (IDENT)*
+compound_name: IDENT (IDENT | ESCAPED_STRING)*
 
 // ---------------------------------------------------------------------------
 // Expressions
 // ---------------------------------------------------------------------------
 
-?expr: atom "&" expr                             -> concat
+?expr: arith_expr "&" expr                       -> concat
+     | arith_expr
+
+?arith_expr: arith_expr "+" term                 -> add
+           | arith_expr "-" term                 -> sub
+           | term
+
+?term: term "*" atom                             -> mul
+     | term "/" atom                             -> div
      | atom
 
 ?atom: ESCAPED_STRING                            -> string_lit
@@ -115,13 +164,15 @@ compound_name: IDENT (IDENT)*
      | "true"                                    -> true_lit
      | "false"                                   -> false_lit
      | property_access                           -> prop_expr
+     | function_call                             -> func_call_expr
+     | list_literal                              -> list_expr
      | IDENT                                     -> ident_expr
 
 // ---------------------------------------------------------------------------
 // Terminals
 // ---------------------------------------------------------------------------
 
-IDENT: /(?!(?:if|tell|set|return|wait|try|catch|end|true|false|of|then|is|contains|loaded)\b)[a-zA-Z_][a-zA-Z0-9_]*/
+IDENT: /(?!(?:if|tell|set|return|wait|try|catch|end|true|false|of|then|is|contains|loaded|repeat|times|while|with|in|on|global|local|declare|as|string|integer|decimal|boolean|list|dict|any|using)\b)[$a-zA-Z_][a-zA-Z0-9_]*/
 
 // Newline handling — newlines are significant as statement terminators
 _NL: NEWLINE+
@@ -137,4 +188,3 @@ COMMENT: /--[^\n]*/
 // Ignore horizontal whitespace and comments
 %ignore /[ \t]+/
 %ignore COMMENT
-

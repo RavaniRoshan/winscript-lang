@@ -151,6 +151,20 @@ class DictLoader:
 
         return results
 
+    def list_all_formatted(self) -> str:
+        apps = self.list_all()
+        if not apps:
+            return "No .wsdict files found in any search path."
+        lines = ["Available WinScript Applications:", ""]
+        for app in apps:
+            lines.append(f"  {app['name']} ({app['backend']})")
+            if app.get("description"):
+                desc = app["description"].strip().split("\n")[0]
+                lines.append(f"    {desc}")
+            lines.append(f"    Path: {app['path']}")
+            lines.append("")
+        return "\n".join(lines)
+
     # ------------------------------------------------------------------
     # Private
     # ------------------------------------------------------------------

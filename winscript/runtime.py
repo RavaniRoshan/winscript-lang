@@ -37,6 +37,16 @@ from winscript.ast_nodes import (
     TryBlock,
     WaitDurationStatement,
     WaitUntilStatement,
+    FunctionDef,
+    FunctionCall,
+    ScopeDeclaration,
+    DeclareStatement,
+    UsingStatement,
+    RepeatTimesBlock,
+    RepeatWhileBlock,
+    RepeatWithBlock,
+    ListLiteral,
+    ArithExpr,
 )
 from winscript.context import ExecutionContext
 from winscript.dicts.loader import DictLoader
@@ -46,9 +56,12 @@ from winscript.errors import (
     WinScriptSyntaxError,
     WinScriptTimeoutError,
 )
-from winscript.parser import parse
+from winscript.parser import parse, validate_v2
 from winscript.resolver import Resolver
+from winscript.types import WSType
 
+
+from winscript.library import LibraryLoader
 
 class WinScriptRuntime:
     """
@@ -67,7 +80,7 @@ class WinScriptRuntime:
     # Public API
     # ------------------------------------------------------------------
 
-    def execute(self, source_code: str) -> Any:
+    def execute(self, source_code: str, script_path: str | None = None) -> Any:
         """
         Full pipeline: parse → execute AST → return result.
 
@@ -77,6 +90,14 @@ class WinScriptRuntime:
         try:
             ast = parse(source_code)
             context = ExecutionContext()
+            
+            # FIRST: load libraries
+            self._load_libraries(ast.statements, context, script_path)
+            
+            # SECOND: register all script functions (can override library functions)
+            self._register_functions(ast.statements, context)
+            
+            # THEN: execute statements (skip FunctionDef — already registered)
             self._execute_statements(ast.statements, context)
             return context.return_value
         finally:
@@ -89,14 +110,70 @@ class WinScriptRuntime:
         """
         errors: list[str] = []
         try:
-            parse(source_code)
+            ast = parse(source_code)
+            errors.extend(validate_v2(ast))
         except WinScriptSyntaxError as e:
             errors.append(str(e))
         return errors
 
+    def parse(self, source_code: str) -> Any:
+        """Parse source code into AST directly. Raises exception on error."""
+        ast = parse(source_code)
+        errors = validate_v2(ast)
+        if errors:
+            raise WinScriptSyntaxError("; ".join(errors))
+        return ast
+
+    def get_app_commands(self, app_name: str) -> str:
+        """Show all commands and properties for an app."""
+        app_dict = self.dict_loader.load(app_name)
+        lines = [
+            f"{app_dict.display_name} (backend: {app_dict.backend})",
+            f"  {app_dict.description.strip()}",
+            "",
+        ]
+        for obj_name, obj in app_dict.objects.items():
+            root_marker = " [ROOT]" if obj.is_root else ""
+            lines.append(f"Object: {obj_name}{root_marker}")
+            lines.append(f"  {obj.description.strip()}")
+            if obj.properties:
+                lines.append("  Properties:")
+                for prop in obj.properties:
+                    lines.append(f"    {prop.name} ({prop.type}) — {prop.description}")
+            if obj.commands:
+                lines.append("  Commands:")
+                for cmd in obj.commands:
+                    lines.append(f"    {cmd.syntax}")
+                    if cmd.description:
+                        desc = cmd.description.strip().split("\n")[0]
+                        lines.append(f"      {desc}")
+            lines.append("")
+        return "\n".join(lines)
+
     # ------------------------------------------------------------------
     # AST walker
     # ------------------------------------------------------------------
+
+    def _load_libraries(self, statements: list, context: ExecutionContext, script_path: str | None = None) -> None:
+        from pathlib import Path
+        script_dir = Path(script_path).parent if script_path else None
+        loader = LibraryLoader(script_dir=script_dir)
+        for stmt in statements:
+            if isinstance(stmt, UsingStatement):
+                lib_functions = loader.load(stmt.path)
+                for fn in lib_functions:
+                    fn_copy = FunctionDef(
+                        name=fn.name,
+                        params=fn.params,
+                        statements=fn.statements,
+                        is_library=True
+                    )
+                    context.register_function(fn_copy)
+
+    def _register_functions(self, statements: list, context: ExecutionContext) -> None:
+        for stmt in statements:
+            if isinstance(stmt, FunctionDef):
+                context.register_function(stmt)
 
     def _execute_statements(self, statements: list, context: ExecutionContext) -> None:
         """Walk a list of statements, stopping early if ``return`` was hit."""
@@ -123,6 +200,22 @@ class WinScriptRuntime:
             self._exec_if(stmt, context)
         elif isinstance(stmt, CommandStatement):
             self._exec_command(stmt, context)
+        elif isinstance(stmt, FunctionDef):
+            pass  # already registered in first pass, skip during execution
+        elif isinstance(stmt, FunctionCall):
+            self._exec_function_call(stmt, context)
+        elif isinstance(stmt, ScopeDeclaration):
+            self._exec_scope_declaration(stmt, context)
+        elif isinstance(stmt, DeclareStatement):
+            self._exec_declare(stmt, context)
+        elif isinstance(stmt, UsingStatement):
+            pass
+        elif isinstance(stmt, RepeatTimesBlock):
+            self._exec_repeat_times(stmt, context)
+        elif isinstance(stmt, RepeatWhileBlock):
+            self._exec_repeat_while(stmt, context)
+        elif isinstance(stmt, RepeatWithBlock):
+            self._exec_repeat_with(stmt, context)
         else:
             raise WinScriptError(f"Unknown statement type: {type(stmt).__name__}")
 
@@ -135,6 +228,45 @@ class WinScriptRuntime:
         Enter a tell block: load the .wsdict, push the tell scope,
         execute inner statements, then pop the scope.
         """
+        if context.current_app:
+            parent_app = context.current_app
+            app_dict = context.get_var(f"__dict_{parent_app}")
+            
+            parts = node.app_name.split(' ', 1)
+            obj_type = parts[0]
+            identifier = parts[1].strip('"').strip("'") if len(parts) > 1 else ""
+            
+            matched_obj = None
+            for obj_name, obj in app_dict.objects.items():
+                if obj_name.lower() == obj_type.lower():
+                    matched_obj = obj
+                    break
+                    
+            if matched_obj:
+                backend = self.dispatcher._backends.get(parent_app)
+                if not backend:
+                    from winscript.resolver import ResolvedAction
+                    dummy = ResolvedAction(
+                        backend_type=app_dict.backend,
+                        backend_method="",
+                        backend_expression="",
+                        args={},
+                        app_name=parent_app,
+                        connection_info=app_dict.connection
+                    )
+                    backend = self.dispatcher._get_backend(dummy)
+
+                if hasattr(backend, "push_context"):
+                    backend.push_context(obj_type, identifier)
+                    prev_obj = context.get_var(f"__obj_{parent_app}")
+                    context.set_var(f"__obj_{parent_app}", matched_obj)
+                    try:
+                        self._execute_statements(node.statements, context)
+                    finally:
+                        backend.pop_context()
+                        context.set_var(f"__obj_{parent_app}", prev_obj)
+                    return
+
         app_dict, root_object = self.resolver.resolve_tell(node.app_name)
         context.push_tell(node.app_name)
         context.set_var(f"__dict_{node.app_name}", app_dict)
@@ -150,10 +282,20 @@ class WinScriptRuntime:
         if isinstance(node.target, str):
             context.set_var(node.target, value)
         elif isinstance(node.target, PropertyAccess):
-            # Property mutation — not supported in v1
-            raise WinScriptError(
-                "Setting properties on objects is not supported in WinScript v1."
-            )
+            if node.target.prop == "value" and isinstance(node.target.of_expr, PropertyAccess) and node.target.of_expr.prop == "cell":
+                cell_name = self._eval_expression(node.target.of_expr.of_expr, context)
+                app_name = context.current_app
+                app_dict = context.get_var(f"__dict_{app_name}")
+                current_object = context.get_var(f"__obj_{app_name}")
+                action = self.resolver.resolve_command(
+                    app_dict, current_object, "set_value_of_cell", {"cell": cell_name, "value": value}
+                )
+                self.dispatcher.execute(action, context)
+            else:
+                # Property mutation — not supported in v1 generally
+                raise WinScriptError(
+                    "Setting properties on objects is not supported in WinScript v1."
+                )
         else:
             context.set_var(str(node.target), value)
 
@@ -207,18 +349,106 @@ class WinScriptRuntime:
         current_object = context.get_var(f"__obj_{app_name}")
 
         # Resolve kwargs (AST nodes → Python values)
-        resolved_args = {}
+        resolved_kwargs = {}
         for k, v in node.kwargs.items():
-            resolved_args[k] = self._eval_expression(v, context)
+            resolved_kwargs[k] = self._eval_expression(v, context)
+            
+        resolved_args = [self._eval_expression(arg, context) for arg in node.args]
 
         action = self.resolver.resolve_command(
-            app_dict, current_object, node.name, resolved_args
+            app_dict, current_object, node.name, resolved_kwargs, resolved_args
         )
         result = self.dispatcher.execute(action, context)
 
         # Stash the last command result for implicit access
         if result is not None:
             context.set_var("_last_result", result)
+
+    def _exec_function_call(self, node: FunctionCall, context: ExecutionContext) -> Any:
+        func_def = context.get_function(node.name)
+        if func_def is None:
+            raise WinScriptError(
+                f"Function '{node.name}' is not defined.\n"
+                f"Available functions: {', '.join(context.list_functions())}"
+            )
+
+        # Validate arg count
+        if len(node.args) != len(func_def.params):
+            raise WinScriptError(
+                f"Function '{node.name}' expects {len(func_def.params)} arguments, "
+                f"got {len(node.args)}."
+            )
+
+        # Evaluate args in CALLER scope
+        arg_values = [self._eval_expression(arg, context) for arg in node.args]
+
+        # Push new scope for function
+        context.push_function_scope(node.name)
+
+        try:
+            # Bind params as local variables
+            for param_name, value in zip(func_def.params, arg_values):
+                context.declare_local(param_name)
+                context.set_var(param_name, value)
+
+            # Execute function body
+            self._execute_statements(func_def.statements, context)
+
+            # Capture return value
+            result = context.return_value
+
+        finally:
+            # Always pop scope and reset return flag
+            context.pop_scope()
+            context._returned = False  # reset for caller
+
+        return result
+
+    def _exec_scope_declaration(self, node: ScopeDeclaration, context: ExecutionContext):
+        if node.scope == "local":
+            context.declare_local(node.variable)
+        else:
+            context.declare_global(node.variable)
+
+    def _exec_declare(self, node: DeclareStatement, context: ExecutionContext):
+        ws_type = WSType(node.type_name)
+        context.current_scope.declare_type(node.variable, ws_type)
+        # Initialize with zero-value for the type
+        zero_values = {
+            WSType.STRING: "", WSType.INTEGER: 0, WSType.DECIMAL: 0.0,
+            WSType.BOOLEAN: False, WSType.LIST: [], WSType.DICT: {}, WSType.ANY: None
+        }
+        context.set_var(node.variable, zero_values[ws_type])
+
+    def _exec_repeat_times(self, node: RepeatTimesBlock, context: ExecutionContext):
+        count = int(self._eval_expression(node.count_expr, context))
+        for _ in range(count):
+            if context.has_returned: break
+            self._execute_statements(node.statements, context)
+
+    def _exec_repeat_while(self, node: RepeatWhileBlock, context: ExecutionContext):
+        iterations = 0
+        while self._eval_condition(node.condition, context):
+            if context.has_returned: break
+            if iterations >= node.max_iterations:
+                raise WinScriptError(
+                    f"repeat while exceeded {node.max_iterations} iterations. "
+                    f"Possible infinite loop. Use a counter or check your condition."
+                )
+            self._execute_statements(node.statements, context)
+            iterations += 1
+
+    def _exec_repeat_with(self, node: RepeatWithBlock, context: ExecutionContext):
+        iterable = self._eval_expression(node.iterable_expr, context)
+        if not isinstance(iterable, list):
+            raise WinScriptError(
+                f"repeat with expects a list, got {type(iterable).__name__}"
+            )
+        for item in iterable:
+            if context.has_returned: break
+            # loop var is local to this block
+            context.set_var(node.variable, item)
+            self._execute_statements(node.statements, context)
 
     # ------------------------------------------------------------------
     # Expression evaluation
@@ -252,6 +482,15 @@ class WinScriptRuntime:
         if isinstance(expr, Condition):
             return self._eval_condition(expr, context)
 
+        if isinstance(expr, FunctionCall):
+            return self._exec_function_call(expr, context)
+            
+        if isinstance(expr, ArithExpr):
+            return self._eval_arith(expr, context)
+            
+        if isinstance(expr, ListLiteral):
+            return [self._eval_expression(item, context) for item in expr.items]
+
         # Fallback: return as-is (plain Python values, etc.)
         return expr
 
@@ -272,17 +511,31 @@ class WinScriptRuntime:
         app_dict = context.get_var(f"__dict_{app_name}")
         current_object = context.get_var(f"__obj_{app_name}")
 
+        if node.prop == "value" and isinstance(node.of_expr, PropertyAccess) and node.of_expr.prop == "cell":
+            cell_name = self._eval_expression(node.of_expr.of_expr, context)
+            action = self.resolver.resolve_command(
+                app_dict, current_object, "value_of_cell", {"cell": cell_name}
+            )
+            return self.dispatcher.execute(action, context)
+
         action = self.resolver.resolve_property(
             app_dict, current_object, node.prop
         )
         return self.dispatcher.get_property(action)
+
+    def _eval_arith(self, node: ArithExpr, context: ExecutionContext) -> Any:
+        left = self._eval_expression(node.left, context)
+        right = self._eval_expression(node.right, context)
+        ops = {"+": lambda a,b: a+b, "-": lambda a,b: a-b,
+               "*": lambda a,b: a*b, "/": lambda a,b: a/b}
+        return ops[node.operator](left, right)
 
     def _eval_condition(self, condition: Any, context: ExecutionContext) -> bool:
         """
         Evaluate a Condition node to a boolean.
 
         Supported operators:
-            is, contains, greater_than, less_than, loaded
+            is, contains, greater_than, less_than, loaded, >, >=, !=
         """
         if isinstance(condition, Condition):
             left = self._eval_expression(condition.left, context)
@@ -293,10 +546,14 @@ class WinScriptRuntime:
                 return left == right
             elif op == "contains":
                 return str(right) in str(left)
-            elif op == "greater_than":
+            elif op == "greater_than" or op == ">":
                 return float(left) > float(right)
-            elif op == "less_than":
+            elif op == "less_than" or op == "<":
                 return float(left) < float(right)
+            elif op == ">=":
+                return float(left) >= float(right)
+            elif op == "!=":
+                return left != right
             elif op == "loaded":
                 return bool(left)
             else:

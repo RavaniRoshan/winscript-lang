@@ -59,7 +59,7 @@ def _run_winscript_file(path: str) -> str:
         script_runtime = WinScriptRuntime(
             extra_dict_paths=[_DICTS_DIR, str(file_path.parent / "dicts")]
         )
-        result = script_runtime.execute(source)
+        result = script_runtime.execute(source, script_path=str(file_path))
         if result is None:
             return "Script executed successfully (no return value)."
         return str(result)

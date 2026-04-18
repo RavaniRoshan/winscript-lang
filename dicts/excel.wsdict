@@ -1,0 +1,199 @@
+meta:
+  name: Excel
+  display_name: "Microsoft Excel"
+  version: "1.0"
+  author: "winscript-core"
+  backend: com
+  description: "Full Excel automation via COM automation"
+
+connection:
+  method: com_dispatch
+  prog_id: "Excel.Application"
+  visible: false
+  quit_on_disconnect: true
+
+objects:
+
+  Application:
+    is_root: true
+    description: "Application (root)"
+    properties:
+    - name: active_workbook
+      type: Workbook
+      com_expression: ActiveWorkbook
+    - name: workbooks
+      type: list
+      com_expression: Workbooks
+    - name: version
+      type: string
+      com_expression: Version
+    - name: visible
+      type: boolean
+      com_expression: Visible
+
+    commands:
+    - name: open
+      syntax: "open {filepath}"
+      com_method: "Workbooks.Open(filepath)"
+      args:
+      - name: filepath
+        type: string
+        required: true
+    - name: quit
+      syntax: "quit"
+      com_method: "Quit()"
+    - name: calculate
+      syntax: "calculate"
+      com_method: "Calculate()"
+
+  Workbook:
+    description: "Workbook"
+    properties:
+    - name: name
+      type: string
+      com_expression: Name
+    - name: path
+      type: string
+      com_expression: FullName
+    - name: active_sheet
+      type: Sheet
+      com_expression: ActiveSheet
+    - name: sheets
+      type: list[string]
+      com_expression: "[s.Name for s in Sheets]"
+    - name: saved
+      type: boolean
+      com_expression: Saved
+
+    commands:
+    - name: save
+      syntax: "save"
+      com_method: "Save()"
+    - name: save_as
+      syntax: "save as {filepath}"
+      com_method: "SaveAs(filepath)"
+      args:
+      - name: filepath
+        type: string
+        required: true
+    - name: close
+      syntax: "close"
+      com_method: "Close(SaveChanges=True)"
+    - name: close_without_saving
+      syntax: "close without saving"
+      com_method: "Close(SaveChanges=False)"
+    - name: activate_sheet
+      syntax: "activate sheet {name}"
+      com_method: "Sheets(name).Activate()"
+      args:
+      - name: name
+        type: string
+        required: true
+
+  Sheet:
+    description: "Accessed via tell sheet 'Name' inside tell Excel block"
+    properties:
+    - name: name
+      type: string
+      com_expression: Name
+    - name: used_range
+      type: string
+      com_expression: UsedRange.Address
+    - name: row_count
+      type: integer
+      com_expression: UsedRange.Rows.Count
+    - name: column_count
+      type: integer
+      com_expression: UsedRange.Columns.Count
+
+    commands:
+    - name: value_of_cell
+      syntax: "value of cell {cell}"
+      com_method: "Range(cell).Value"
+      args:
+      - name: cell
+        type: string
+        required: true
+    - name: set_value_of_cell
+      syntax: "set value of cell {cell} to {value}"
+      com_method: "Range(cell).Value = value"
+      args:
+      - name: cell
+        type: string
+        required: true
+      - name: value
+        type: any
+        required: true
+    - name: range
+      syntax: "range {start} to {end}"
+      com_method: 'Range(f"{start}:{end}").Value'
+      args:
+      - name: start
+        type: string
+        required: true
+      - name: end
+        type: string
+        required: true
+    - name: clear_cell
+      syntax: "clear cell {cell}"
+      com_method: "Range(cell).ClearContents()"
+      args:
+      - name: cell
+        type: string
+        required: true
+    - name: format_cell_as
+      syntax: "format cell {cell} as {format_string}"
+      com_method: "Range(cell).NumberFormat = format_string"
+      args:
+      - name: cell
+        type: string
+        required: true
+      - name: format_string
+        type: string
+        required: true
+    - name: find
+      syntax: "find {text}"
+      com_method: "Cells.Find(What=text).Address"
+      args:
+      - name: text
+        type: string
+        required: true
+    - name: copy_range_to
+      syntax: "copy range {start} to {end}"
+      com_method: 'Range(f"{start}:{end}").Copy()'
+      args:
+      - name: start
+        type: string
+        required: true
+      - name: end
+        type: string
+        required: true
+    - name: delete_row
+      syntax: "delete row {row_number}"
+      com_method: "Rows(row_number).Delete()"
+      args:
+      - name: row_number
+        type: integer
+        required: true
+    - name: insert_row
+      syntax: "insert row {row_number}"
+      com_method: "Rows(row_number).Insert()"
+      args:
+      - name: row_number
+        type: integer
+        required: true
+
+  Chart:
+    description: "Chart stub"
+    properties: []
+    commands:
+    - name: create_chart_from_range
+      syntax: "create chart {type} from range {range}"
+      com_method: "pass"
+      args:
+      - name: type
+        type: string
+        required: true
+      - name: range
+        type: string
+        required: true

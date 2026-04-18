@@ -1,0 +1,4 @@
+
+on dummy_func()
+    return "dummy"
+end on

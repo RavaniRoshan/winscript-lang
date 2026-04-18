@@ -1,0 +1,26 @@
+on search_google(query)
+    tell Chrome
+        navigate to "https://www.google.com"
+        wait until loaded
+        type query into element "Search"
+        press Enter
+        wait until loaded
+        return title of active tab
+    end tell
+end on
+
+on get_page_text()
+    tell Chrome
+        run script "document.body.innerText"
+        return _last_result
+    end tell
+end on
+
+on take_named_screenshot(label)
+    local shot
+    tell Chrome
+        take screenshot
+        set shot to _last_result
+    end tell
+    return label & ": " & shot
+end on

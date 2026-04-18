@@ -86,7 +86,8 @@ class Resolver:
         app_dict: AppDict,
         current_object: ObjectDef,
         command_name: str,
-        args: dict,
+        kwargs: dict,
+        args: list = None,
     ) -> ResolvedAction:
         """
         Look up *command_name* in the current object's command list,
@@ -100,6 +101,8 @@ class Resolver:
             WinScriptCommandNotFound — command doesn't exist
             WinScriptTypeError       — argument type mismatch
         """
+        if args is None:
+            args = []
         cmd_def = current_object.find_command(command_name)
 
         # Fall back: search all objects (e.g. Tab commands from Browser scope)
@@ -121,7 +124,7 @@ class Resolver:
             )
 
         # Validate arguments against the command definition
-        resolved_args = self._validate_args(cmd_def, args)
+        resolved_args = self._validate_args(cmd_def, kwargs, args)
 
         return ResolvedAction(
             backend_type=app_dict.backend,
@@ -266,20 +269,25 @@ class Resolver:
     # Argument validation
     # ------------------------------------------------------------------
 
-    def _validate_args(self, cmd_def: CommandDef, provided: dict) -> dict:
+    def _validate_args(self, cmd_def: CommandDef, provided: dict, pos_args: list = None) -> dict:
         """
         Check provided args against the command's arg definitions.
         Returns a clean dict of validated argument values.
         """
+        if pos_args is None:
+            pos_args = []
         resolved: dict = {}
 
-        for arg_def in cmd_def.args:
+        for i, arg_def in enumerate(cmd_def.args):
             arg_name = arg_def.get("name", "")
             arg_type = arg_def.get("type", "any")
             required = arg_def.get("required", False)
 
             # Find the value: check by exact name, then positional kwargs
             value = provided.get(arg_name)
+
+            if value is None and i < len(pos_args):
+                value = pos_args[i]
 
             # Also check common alias mappings from the grammar transformer:
             # navigate_cmd puts url in kwargs["to"]

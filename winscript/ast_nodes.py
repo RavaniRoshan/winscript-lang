@@ -76,3 +76,63 @@ class Condition:
     left: Any
     operator: str
     right: Any
+
+# Loops
+@dataclass
+class RepeatTimesBlock:
+    count_expr: Any        # expression evaluating to integer
+    statements: list
+
+@dataclass
+class RepeatWhileBlock:
+    condition: Any         # Condition node
+    statements: list
+    max_iterations: int = 10000  # safety limit — no infinite loops
+
+@dataclass
+class RepeatWithBlock:
+    variable: str          # loop variable name (local to block)
+    iterable_expr: Any     # expression evaluating to list
+    statements: list
+
+# Functions
+@dataclass
+class FunctionDef:
+    name: str
+    params: list[str]      # parameter names in order
+    statements: list
+    is_library: bool = False  # True if loaded from .wslib
+
+@dataclass
+class FunctionCall:
+    name: str
+    args: list             # positional arg expressions
+
+# Scope
+@dataclass
+class ScopeDeclaration:
+    scope: str             # "global" | "local"
+    variable: str
+
+# Types
+@dataclass
+class DeclareStatement:
+    variable: str
+    type_name: str         # "string"|"integer"|"decimal"|"boolean"|"list"|"dict"|"any"
+
+# Libraries
+@dataclass
+class UsingStatement:
+    path: str              # path to .wslib file
+
+# List literal
+@dataclass
+class ListLiteral:
+    items: list            # list of expression nodes
+
+# Arithmetic
+@dataclass
+class ArithExpr:
+    left: Any
+    operator: str          # "+" | "-" | "*" | "/"
+    right: Any

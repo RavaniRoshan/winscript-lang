@@ -1,0 +1,80 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "WinScript",
+  "scopeName": "source.winscript",
+  "patterns": [
+    {
+      "include": "#comments"
+    },
+    {
+      "include": "#strings"
+    },
+    {
+      "include": "#keywords"
+    },
+    {
+      "include": "#types"
+    },
+    {
+      "include": "#literals"
+    },
+    {
+      "include": "#apps"
+    },
+    {
+      "include": "#functions"
+    },
+    {
+      "include": "#operators"
+    }
+  ],
+  "repository": {
+    "comments": {
+      "match": "--.*$",
+      "name": "comment.line.winscript"
+    },
+    "strings": {
+      "begin": "\"",
+      "end": "\"",
+      "name": "string.quoted.double.winscript",
+      "patterns": [
+        {
+          "match": "\\\\.",
+          "name": "constant.character.escape.winscript"
+        }
+      ]
+    },
+    "keywords": {
+      "match": "\\b(tell|end|set|to|return|wait|until|try|catch|repeat|times|while|with|in|on|global|local|declare|as|using|if|then|and|or|not|is|contains|of)\\b",
+      "name": "keyword.control.winscript"
+    },
+    "types": {
+      "match": "\\b(string|integer|decimal|boolean|list|dict|any)\\b",
+      "name": "storage.type.winscript"
+    },
+    "literals": {
+      "patterns": [
+        {
+          "match": "\\b(true|false)\\b",
+          "name": "constant.language.winscript"
+        },
+        {
+          "match": "\\b\\d+(\\.\\d+)?\\b",
+          "name": "constant.numeric.winscript"
+        }
+      ]
+    },
+    "apps": {
+      "match": "(?<=\\btell\\s+)(Chrome|Excel|Outlook|Explorer|Notepad)\\b",
+      "name": "entity.name.class.winscript"
+    },
+    "functions": {
+      "match": "(?<=\\bon\\s+)[a-zA-Z_][a-zA-Z0-9_]*\\b",
+      "name": "entity.name.function.winscript"
+    },
+    "operators": {
+      "match": "(&|\\+|-|\\*|/)",
+      "name": "keyword.operator.winscript"
+    }
+  }
+}

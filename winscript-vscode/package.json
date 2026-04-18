@@ -1,0 +1,23 @@
+{
+  "name": "winscript",
+  "displayName": "WinScript",
+  "description": "WinScript language support for VSCode",
+  "version": "2.0.0",
+  "engines": { "vscode": "^1.85.0" },
+  "categories": ["Programming Languages"],
+  "activationEvents": ["onLanguage:winscript"],
+  "main": "./extension.js",
+  "contributes": {
+    "languages": [{
+      "id": "winscript",
+      "aliases": ["WinScript", "winscript"],
+      "extensions": [".ws", ".wslib"],
+      "configuration": "./language-configuration.json"
+    }],
+    "grammars": [{
+      "language": "winscript",
+      "scopeName": "source.winscript",
+      "path": "./syntaxes/winscript.tmLanguage.json"
+    }]
+  }
+}
