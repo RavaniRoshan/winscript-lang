@@ -14,5 +14,6 @@ setup(
         "websockets>=12.0",
         "pyyaml>=6.0",
         "fastmcp>=2.0",
+        "rich>=13.0",
     ],
 )

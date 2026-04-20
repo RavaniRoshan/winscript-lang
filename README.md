@@ -1,26 +1,26 @@
 <p align="center">
-  <img src="https://img.shields.io/badge/WinScript-v2.0-blue?style=for-the-badge&logo=windows&logoColor=white" alt="WinScript v2.0"/>
-  <img src="https://img.shields.io/badge/license-MIT-green?style=for-the-badge" alt="MIT License"/>
-  <img src="https://img.shields.io/badge/python-3.11+-yellow?style=for-the-badge&logo=python&logoColor=white" alt="Python 3.11+"/>
-  <img src="https://img.shields.io/badge/tests-171%20passing-brightgreen?style=for-the-badge" alt="171 Tests Passing"/>
+<img src="https://img.shields.io/badge/WinScript-v2.1-blue?style=for-the-badge&logo=windows&logoColor=white" alt="WinScript v2.1"/>
+<img src="https://img.shields.io/badge/license-MIT-green?style=for-the-badge" alt="MIT License"/>
+<img src="https://img.shields.io/badge/python-3.11+-yellow?style=for-the-badge&logo=python&logoColor=white" alt="Python 3.11+"/>
+<img src="https://img.shields.io/badge/tests-197%20passing-brightgreen?style=for-the-badge" alt="197 Tests Passing"/>
 </p>
 
 <h1 align="center">🪟 WinScript</h1>
 
 <p align="center">
-  <strong>The open scripting language for Windows automation.</strong><br/>
-  AppleScript had 40 years. Windows had nothing.<br/>
-  Until now.
+<strong>The open scripting language for Windows automation.</strong><br/>
+AppleScript had 40 years. Windows had nothing.<br/>
+Until now.
 </p>
 
 <p align="center">
-  <a href="#-quickstart">Quickstart</a> •
-  <a href="#-language-overview">Language</a> •
-  <a href="#-whats-new-in-v20">What's New in v2.0</a> •
-  <a href="#-architecture">Architecture</a> •
-  <a href="#-mcp-integration">MCP Integration</a> •
-  <a href="#-write-your-own-dictionary">Extend</a> •
-  <a href="#-roadmap">Roadmap</a>
+<a href="#-quickstart">Quickstart</a> •
+<a href="#-installation">Installation</a> •
+<a href="#-chrome-setup">Chrome Setup</a> •
+<a href="#-language-reference">Language</a> •
+<a href="#-cli-reference">CLI</a> •
+<a href="#-troubleshooting">Troubleshooting</a> •
+<a href="#-mcp-integration">MCP</a>
 </p>
 
 ---
@@ -31,10 +31,10 @@ WinScript is a **real language** — not a tool wrapper — designed so AI agent
 
 ```winscript
 tell Chrome
-    navigate to "https://github.com"
-    wait until loaded
-    set pageTitle to title of active tab
-    return pageTitle
+navigate to "https://github.com"
+wait until loaded
+set pageTitle to title of active tab
+return pageTitle
 end tell
 ```
 
@@ -43,73 +43,407 @@ Just structured commands that talk directly to application APIs.
 
 ---
 
-## 🚀 What's New in v2.0
-
-WinScript v2.0 brings massive improvements to the language, turning it into a complete, robust automation ecosystem.
-
-### Major Changelog
-* **Interactive REPL (`winscript`)**: A stateful, colorful terminal interface for live-coding with multi-line buffering, command history, and environment commands (`:vars`, `:funcs`, `:clear`).
-* **Command-Line Interface**: Execute scripts directly from the terminal (`winscript script.ws`), pass arguments (`--args`), validate syntax (`--validate`), and list dictionaries (`--apps`, `--commands`).
-* **VSCode Extension & Language Server**: Professional IDE support via an LSP (`pygls`). Features real-time error diagnostics, syntax highlighting (`.tmLanguage.json`), smart autocomplete for apps/commands, and Markdown hover docs.
-* **Microsoft Excel COM Integration**: Official v2 reference implementation for interacting with Windows COM. Includes nested context routing (`tell Excel` -> `tell sheet "Summary"`) natively executing `pywin32` methods.
-* **Script Library System (`using`)**: Share code and import reusable `.wslib` modules into your scripts.
-* **Expanded Language Grammar**:
-  * **Functions**: Define and call user-functions (`on ... end on`), fully hoisted.
-  * **Loops**: Iterate with `repeat times`, `repeat while`, and `repeat with ... in`.
-  * **Variables & Types**: Lexical scope stack (`global` / `local`) and strict runtime typing (`declare x as integer`).
-  * **Arithmetic & Lists**: Added math operators (`+`, `-`, `*`, `/`), list literals (`[1, 2, 3]`), and more comparisons.
-* **Session Persistence** (`save session`, `load session`): Save and restore execution state across script runs.
-* **Interactive Debugger** (`--debug`): Step-through debugging with breakpoints, variable inspection, and watch expressions.
-* **Async/Await Support** (`async tell`, `await`): Execute tell blocks asynchronously and wait for completion.
-* **Type Analyzer**: Advanced type inference system with flow-sensitive typing and generic support.
-* **AppleScript Converter** (`--convert`): Convert AppleScript files to WinScript syntax.
-
----
-
-## 🏗️ How it works
-
-WinScript uses an **open dictionary format** (`.wsdict`) that maps natural-language commands to backend API calls:
-
-```
-your_script.ws  →  grammar.lark  →  AST  →  resolver + chrome.wsdict  →  CDP backend  →  Chrome
-```
-
-| Layer | What it does |
-|-------|-------------|
-| **Grammar** | Lark PEG parser — `tell/end tell`, `set`, `return`, `wait`, `try/catch`, `repeat`, `on` |
-| **AST** | Clean dataclass nodes for every construct |
-| **Resolver** | Maps commands to `.wsdict` definitions |
-| **Dispatcher** | Routes resolved actions to the correct backend |
-| **Backends** | CDP (Chrome/Electron), COM (Office), UIA (Win32) — pluggable |
-
----
-
 ## 🚀 Quickstart
 
-### 1. Install
+### 1️⃣ Install WinScript
 
 ```bash
+# Clone the repository
 git clone https://github.com/winscript/winscript-lang.git
 cd winscript-lang
+
+# Create virtual environment (recommended)
+python3 -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+
+# Install WinScript
 pip install -e .
 ```
 
-### 2. Run a script
+### 2️⃣ Set up Chrome (for web automation)
+
+WinScript uses Chrome DevTools Protocol (CDP) to control Chrome.
+
+**Option A: Automatic setup**
+```bash
+# Check if Chrome is installed and ready
+winscript --check-chrome
+
+# See detailed setup guide
+winscript --setup-chrome
+```
+
+**Option B: Manual setup**
+
+<details>
+<summary><b>Windows</b></summary>
+
+```powershell
+# In Command Prompt or PowerShell
+"C:\Program Files\Google\Chrome\Application\chrome.exe" --remote-debugging-port=9222
+```
+
+Chrome variants supported:
+- Google Chrome: `C:\Program Files\Google\Chrome\Application\chrome.exe`
+- Microsoft Edge: `C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe`
+- Brave: `%LOCALAPPDATA%\BraveSoftware\Brave-Browser\Application\brave.exe`
+- Chromium: `C:\Program Files\Chromium\Application\chrome.exe`
+
+</details>
+
+<details>
+<summary><b>macOS</b></summary>
 
 ```bash
-# Start Chrome with debugging enabled
-chrome.exe --remote-debugging-port=9222
+# In Terminal
+/Applications/Google\ Chrome.app/Contents/MacOS/Google\ Chrome --remote-debugging-port=9222
+```
 
-# Execute WinScript via the new CLI
-winscript my_script.ws
+Chrome variants supported:
+- Google Chrome: `/Applications/Google Chrome.app`
+- Microsoft Edge: `/Applications/Microsoft Edge.app`
+- Brave Browser: `/Applications/Brave Browser.app`
 
-# Or launch the interactive REPL
+</details>
+
+<details>
+<summary><b>Linux</b></summary>
+
+```bash
+# One of these should work:
+google-chrome --remote-debugging-port=9222
+chromium --remote-debugging-port=9222
+brave --remote-debugging-port=9222
+```
+
+</details>
+
+### 3️⃣ Verify Chrome is connected
+
+```bash
+# In another terminal window
+winscript --check-chrome
+```
+
+You should see:
+```
+✓ Chrome executable found at: <path>
+✓ Chrome DevTools Protocol active (http://localhost:9222)
+💡 Chrome is ready for WinScript automation!
+```
+
+### 4️⃣ Run your first script
+
+Create a file `hello.ws`:
+
+```winscript
+-- hello.ws - Your first WinScript
+
+set message to "Hello from WinScript!"
+return message
+```
+
+Run it:
+```bash
+winscript hello.ws
+```
+
+Output:
+```
+"Hello from WinScript!"
+```
+
+🎉 **Success!** You've run your first WinScript.
+
+---
+
+## 🛠️ Chrome Setup Guide
+
+### Finding Chrome on Your System
+
+WinScript automatically detects Chrome from common locations:
+
+| Platform | Chrome | Edge | Brave | Chromium |
+|----------|--------|------|-------|----------|
+| Windows | `%PROGRAMFILES%` | `%PROGRAMFILES(X86)%` | `%LOCALAPPDATA%` | `%PROGRAMFILES%` |
+| macOS | `/Applications` | `/Applications` | `/Applications` | `/Applications` |
+| Linux | `which google-chrome` | `which microsoft-edge` | `which brave` | `which chromium` |
+
+### Verifying Chrome is Running
+
+**Check if Chrome is accepting connections:**
+```bash
+# Method 1: Use WinScript
+winscript --check-chrome
+
+# Method 2: Open in browser
+open http://localhost:9222/json
+```
+
+If you see a JSON response, Chrome is ready!
+
+### Common Chrome Path Issues
+
+**Issue: "Chrome not found"**
+```
+⚠ Chrome not found automatically
+```
+
+**Solutions:**
+1. **Install Chrome** if not already installed
+2. **Use full path**: `winscript --setup-chrome` to see platform-specific paths
+3. **Add to PATH**: Ensure Chrome is in your system PATH
+4. **Specify alternative**: Use Edge, Brave, or Chromium instead
+
+**Issue: "Port 9222 already in use"**
+
+```bash
+# Find and kill process on port 9222
+
+# Windows (PowerShell)
+netstat -ano | findstr :9222
+taskkill /PID <PID> /F
+
+# macOS/Linux
+lsof -ti:9222 | xargs kill -9
+```
+
+**Issue: "Connection refused"**
+
+Make sure Chrome was started with the `--remote-debugging-port=9222` flag.
+
+---
+
+## 📖 Language Reference
+
+### Core Constructs
+
+#### `tell` / `end tell` — Target an application
+
+```winscript
+tell Chrome
+  navigate to "https://github.com"
+end tell
+```
+
+**Supported Applications:**
+- `Chrome` — Chrome/Edge/Brave/Chromium via CDP
+- `Excel` — Microsoft Excel via COM
+
+#### `set` — Assign variables
+
+```winscript
+set x to "Hello"
+set y to 42
+set z to x & " World"  -- Concatenation with &
+```
+
+#### `return` — Produce a result
+
+```winscript
+set result to calculate()
+return result
+```
+
+#### `declare` — Type declarations
+
+```winscript
+declare count as integer
+set count to 5
+
+declare names as list
+set names to ["Alice", "Bob", "Charlie"]
+```
+
+**Available types:** `string`, `integer`, `decimal`, `boolean`, `list`, `dict`, `any`
+
+#### `if` / `then` / `end if` — Conditional branching
+
+```winscript
+if title contains "GitHub" then
+  return "Found it!"
+end if
+
+-- Comparison operators: is, contains, >, <, >=, <=, !=
+if count > 10 then
+  return "Many"
+end if
+```
+
+#### `try` / `catch` / `end try` — Error handling
+
+```winscript
+try
+  click element "#submit"
+catch err
+  return "Error: " & err
+end try
+```
+
+#### `repeat` — Loops
+
+```winscript
+-- Repeat N times
+repeat 5 times
+  -- do something
+end repeat
+
+-- Repeat while condition
+set x to 0
+repeat while x < 10
+  set x to x + 1
+end repeat
+
+-- Repeat with list
+repeat with item in ["A", "B", "C"]
+  return item
+end repeat
+```
+
+#### `on` / `end on` — Functions
+
+```winscript
+on greet(name)
+  return "Hello " & name
+end on
+
+set result to greet("World")
+return result
+```
+
+#### `wait` — Pause execution
+
+```winscript
+wait until loaded      -- Wait for page to load
+wait 2 seconds         -- Wait 2 seconds
+wait 500 milliseconds  -- Wait 500ms
+```
+
+#### `using` — Import libraries
+
+```winscript
+using "helpers.wslib"
+
+-- Functions from library are now available
+set result to helper_function()
+```
+
+---
+
+## 💻 CLI Reference
+
+### Basic Commands
+
+| Command | Description |
+|---------|-------------|
+| `winscript script.ws` | Run a WinScript file |
+| `winscript` | Launch interactive REPL |
+| `winscript --help` | Show full help |
+
+### Execution Options
+
+| Flag | Description | Example |
+|------|-------------|---------|
+| `--args, -a` | Pass arguments as `$1`, `$2`... | `--args "hello" 42` |
+| `--validate, -c` | Check syntax without running | `--validate script.ws` |
+| `--quiet, -q` | Suppress output except return | `--quiet script.ws` |
+| `--debug, -d` | Run with debugger | `--debug script.ws` |
+
+### Application Discovery
+
+| Flag | Description | Example |
+|------|-------------|---------|
+| `--apps` | List available apps | `--apps` |
+| `--commands, -C` | Show app commands | `--commands Chrome` |
+| `--dict-path` | Add dictionary path | `--dict-path ./custom` |
+
+### Session Management
+
+| Flag | Description | Example |
+|------|-------------|---------|
+| `--save-session` | Save state after run | `--save-session my-session` |
+| `--load-session` | Load state before run | `--load-session my-session` |
+| `--list-sessions, -L` | List saved sessions | `--list-sessions` |
+| `--delete-session` | Delete a session | `--delete-session my-session` |
+
+### Conversion & Setup
+
+| Flag | Description | Example |
+|------|-------------|---------|
+| `--convert` | Convert AppleScript | `--convert script.scpt -o output.ws` |
+| `--setup-chrome` | Show Chrome setup | `--setup-chrome` |
+| `--check-chrome` | Check Chrome status | `--check-chrome` |
+
+### Examples
+
+```bash
+# Run with arguments
+winscript script.ws --args "username" "password"
+
+# Validate syntax
+winscript --validate script.ws
+
+# List Chrome commands
+winscript --commands Chrome
+
+# Convert AppleScript
+winscript --convert old_script.scpt -o new_script.ws
+
+# Save session for resuming later
+winscript long_script.ws --save-session progress
+
+# Resume from saved session
+winscript resume.ws --load-session progress
+```
+
+---
+
+## 🖥️ REPL (Interactive Shell)
+
+Launch the REPL:
+```bash
 winscript
 ```
 
-### 3. Use with Claude Desktop (MCP)
+### REPL Commands
 
-Add to your `claude_desktop_config.json`:
+| Command | Alias | Description |
+|---------|-------|-------------|
+| `:help` | `:h` | Show help |
+| `:quit` | `:q` | Exit REPL |
+| `:clear` | `:c` | Clear context |
+| `:vars` | `:v` | Show variables |
+| `:funcs` | `:f` | Show functions |
+| `:apps` | | List apps |
+| `:load <file>` | | Load script |
+| `:save <name>` | | Save session |
+| `:history` | | Show history |
+
+### REPL Features
+
+- **Syntax highlighting** — Code is colorized as you type
+- **Multi-line editing** — Automatically detects incomplete blocks
+- **Command history** — Navigate with ↑/↓ arrows
+- **Auto-completion** — Tab completion for commands
+- **Live validation** — Instant feedback on syntax errors
+
+---
+
+## 🔌 MCP Integration
+
+WinScript exposes MCP tools for AI agent integration:
+
+| Tool | Description |
+|------|-------------|
+| `run_winscript(code)` | Execute WinScript source code |
+| `run_winscript_file(path)` | Execute a `.ws` file from disk |
+| `list_available_apps()` | List all discoverable `.wsdict` files |
+| `get_app_commands(app_name)` | Show commands/properties for an app |
+| `validate_script(code)` | Parse-check without executing |
+
+### Claude Desktop Configuration
+
+Add to `claude_desktop_config.json`:
 
 ```json
 {
@@ -124,261 +458,197 @@ Add to your `claude_desktop_config.json`:
 }
 ```
 
-Then ask Claude:
-> *"Use WinScript to navigate Chrome to github.com and return the page title"*
-
-Claude writes the script. WinScript executes it. Zero other tools needed.
-
 ---
 
-## 📖 Language Overview
+## 🔧 Troubleshooting
 
-WinScript is built on natural, powerful constructs:
+### Common Issues
 
-### `tell` / `end tell` — Target an app
+#### Issue: Script file not found
+```
+✗ Error: Script not found: myscript.ws
+```
+**Solution:** Ensure you're in the correct directory or provide the full path.
 
+#### Issue: Chrome not responding
+```
+✗ Error: Connection refused
+```
+**Solution:**
+1. Check Chrome is running with debugging: `winscript --check-chrome`
+2. Restart Chrome with the debugging flag
+3. Try a different port: `--remote-debugging-port=9223`
+
+#### Issue: Application not found
+```
+✗ Dictionary 'MyApp' not found
+```
+**Solution:**
+1. Check available apps: `winscript --apps`
+2. Ensure `.wsdict` file exists in `dicts/` directory
+3. Use correct app name (case-insensitive)
+
+#### Issue: Command outside tell block
+```
+✗ Runtime Error: Command 'navigate' outside tell block
+```
+**Solution:** Wrap commands in a tell block:
 ```winscript
 tell Chrome
-    -- all commands here go to Chrome
+  navigate to "https://example.com"
 end tell
 ```
 
-### Variables and Types
+#### Issue: Permission denied
+```
+✗ Error: Permission denied
+```
+**Solution:**
+- Windows: Run as Administrator if needed
+- macOS: Grant accessibility permissions in System Preferences
+- Linux: Check file permissions with `ls -la`
 
-```winscript
-declare count as integer
-set count to 5
-set url to "https://github.com"
-local message
-set message to "Started"
+### Debug Mode
+
+Enable debug mode for detailed execution tracing:
+```bash
+winscript script.ws --debug
 ```
 
-### Functions
+Debugger commands:
+- `c` / `continue` — Resume execution
+- `s` / `step` — Step to next line
+- `n` / `next` — Step over function calls
+- `b <line>` — Set breakpoint
+- `p <var>` — Print variable value
+- `q` — Quit debugger
 
-```winscript
-on greet(name)
-    return "Hello " & name
-end on
+### Getting Help
 
-set result to greet("World")
+```bash
+# Show CLI help
+winscript --help
+
+# Show Chrome setup guide
+winscript --setup-chrome
+
+# Check system status
+winscript --check-chrome
+winscript --apps
+winscript --list-sessions
 ```
-
-### Loops
-
-```winscript
-repeat 5 times
-    -- do something
-end repeat
-
-repeat with item in ["A", "B", "C"]
-    -- do something
-end repeat
-```
-
-### `return` — Produce a result
-
-```winscript
-return title of active tab
-return greeting & " from " & url
-```
-
-### `wait` — Pause or poll
-
-```winscript
-wait until loaded
-wait 2 seconds
-wait 500 milliseconds
-```
-
-### `try` / `catch` / `end try` — Handle errors
-
-```winscript
-try
-    click element "#submit-button"
-catch err
-    return "Button not found: " & err
-end try
-```
-
-### `if` / `then` / `end if` — Branch
-
-```winscript
-if title contains "GitHub" then
-    return "Found it!"
-end if
-```
-
----
-
-## 🏛️ Architecture
-
-```
-winscript-lang/
-├── winscript-vscode/           ← VSCode Extension & Language Server (v2)
-├── spec/                       ← Language & Dictionary specs
-├── winscript/
-│   ├── grammar.lark            ← Lark PEG grammar
-│   ├── parser.py               ← Grammar → AST transformer
-│   ├── ast_nodes.py            ← Dataclass AST nodes
-│   ├── context.py              ← Lexical scopes, variables, functions (v2)
-│   ├── runtime.py              ← Main orchestrator
-│   ├── cli.py                  ← Command-line entry point (v2)
-│   ├── repl.py                 ← Interactive shell (v2)
-│   ├── library.py              ← Module loader for .wslib (v2)
-│   ├── types.py                ← Type system & coercion (v2)
-│   ├── mcp_server.py           ← MCP tool interface
-│   ├── backends/               ← CDP, COM, UIA backend handlers
-│   └── dicts/                  ← Dictionary discovery/loader
-├── dicts/
-│   ├── chrome.wsdict           ← CDP Dictionary
-│   └── excel.wsdict            ← COM Dictionary (v2)
-├── libs/                       ← Reusable .wslib modules
-├── tests/                      ← 171 robust tests
-└── setup.py                    ← Pip installer (v2)
-```
-
----
-
-## 🔌 MCP Integration
-
-WinScript exposes **5 MCP tools** for AI agent integration:
-
-| Tool | Description |
-|------|-------------|
-| `run_winscript(code)` | Execute WinScript source code |
-| `run_winscript_file(path)` | Execute a `.ws` file from disk |
-| `list_available_apps()` | List all discoverable `.wsdict` files |
-| `get_app_commands(app_name)` | Show commands/properties for an app |
-| `validate_script(code)` | Parse-check without executing |
-
----
-
-## 📝 Write Your Own Dictionary
-
-The `.wsdict` format is **open and community-driven**. Anyone can add support for any app — no runtime changes needed.
-
-### Minimal example: `notepad.wsdict`
-
-```yaml
-meta:
-  name: Notepad
-  version: "1.0"
-  backend: uia
-  description: "Automate Windows Notepad"
-
-connection:
-  process_name: "notepad.exe"
-
-objects:
-  Editor:
-    description: "The main text editor"
-    is_root: true
-    properties:
-      - name: text
-        type: string
-        uia_method: GetWindowText
-    commands:
-      - name: type
-        syntax: 'type {text}'
-        uia_method: TypeKeys
-        args:
-          - name: text
-            type: string
-            required: true
-```
-
-Drop it in `dicts/` and instantly:
-
-```winscript
-tell Notepad
-    type "Hello from WinScript!"
-end tell
-```
-
-### Community dictionary roadmap
-
-| Dictionary | Backend | Status |
-|-----------|---------|--------|
-| `chrome.wsdict` | CDP | ✅ Ships with v1 |
-| `excel.wsdict` | COM | ✅ Ships with v2 |
-| `word.wsdict` | COM | 🔜 Community |
-| `outlook.wsdict` | COM | 🔜 Community |
-| `vscode.wsdict` | CDP | 🔜 Community (Electron!) |
-| `slack.wsdict` | CDP | 🔜 Community (Electron!) |
-| `discord.wsdict` | CDP | 🔜 Community (Electron!) |
-| `spotify.wsdict` | CDP | 🔜 Community (Electron!) |
-| `notepad.wsdict` | UIA | 🔜 Community |
-| `terminal.wsdict` | UIA | 🔜 Community |
 
 ---
 
 ## 🧪 Testing
 
 ```bash
-# Run full test suite (171 tests)
+# Run all tests
 pytest tests/ -v
 
-# Run with Chrome integration tests
-chrome.exe --remote-debugging-port=9222
-pytest tests/ -v  # Chrome tests run automatically when Chrome is available
+# Run specific test file
+pytest tests/test_session.py -v
+
+# Run with coverage
+pytest tests/ --cov=winscript --cov-report=html
 ```
 
 ---
 
-## 🗺️ Roadmap
+## 📝 Advanced Features
 
-### v1.0 — MVP ✅
-- [x] Lark grammar with 5 constructs
-- [x] AST nodes + transformer
-- [x] Execution context + error hierarchy
-- [x] Dictionary loader + validator
-- [x] Chrome reference dictionary
-- [x] CDP backend with smart methods
-- [x] Resolver (AST → dictionary lookup)
-- [x] Dispatcher (resolved actions → backends)
-- [x] Runtime orchestrator
-- [x] MCP server (5 tools)
+### Session Persistence
 
-### v2.0 — Language Expansion & Tooling ✅
-- [x] CLI package & Interactive REPL
-- [x] VSCode Extension & Language Server (LSP)
-- [x] Excel COM backend & nested tell routing
-- [x] User-defined functions (`on ... end on`) & module libraries (`.wslib`)
-- [x] `repeat` loops & lexical scoping
-- [x] Runtime type system & lists/math
-- [x] 171 passing tests
+Save execution state and resume later:
 
-### v2.1 — UI Automation & Community
-- [ ] UIA backend (Notepad, Calculator, Explorer)
-- [ ] Multi-tab targeting & advanced DOM handling
-- [ ] Community `.wsdict` contributions
+```winscript
+-- fetch_data.ws
+set page to 1
+set allData to []
 
----
+tell Chrome
+  repeat 10 times
+    navigate to "https://api.example.com/data?page=" & page
+    wait until loaded
+    set data to content
+    set allData to allData & [data]
+    set page to page + 1
+    
+    -- Save progress every iteration
+    if page mod 5 is 0 then
+      save session "data-collection"
+    end if
+  end repeat
+end tell
 
-## 📄 Specifications
+return allData
+```
 
-| Document | Description |
-|----------|-------------|
-| [`spec/language-v1.md`](spec/language-v1.md) | WinScript language specification |
-| [`spec/wsdict-v1.md`](spec/wsdict-v1.md) | Dictionary format specification |
-| [`dicts/chrome.wsdict`](dicts/chrome.wsdict) | Reference dictionary implementation |
+Resume later:
+```bash
+winscript fetch_data.ws --load-session data-collection
+```
+
+### Async Operations
+
+Execute tell blocks asynchronously:
+
+```winscript
+-- Parallel operations
+async tell Chrome
+  navigate to "https://site1.com"
+end tell
+
+async tell Chrome
+  navigate to "https://site2.com"
+end tell
+
+await  -- Wait for both to complete
+```
+
+### AppleScript Conversion
+
+Convert existing AppleScripts:
+
+```bash
+winscript --convert my_mac_script.scpt -o my_windows_script.ws
+```
+
+Supports conversion of:
+- Tell blocks → WinScript tell blocks
+- Set statements → WinScript set
+- If/then → WinScript if/then
+- Repeat loops → WinScript repeat
+- Common application mappings (Safari→Chrome, etc.)
 
 ---
 
 ## 🤝 Contributing
 
-WinScript is **MIT licensed** and designed to be community-extended.
+WinScript is **MIT licensed** and designed for community extension.
 
-The fastest way to contribute:
-1. **Write a `.wsdict`** for an app you use daily
-2. **Test it** against the runtime
-3. **Submit a PR** — no runtime changes needed
+### Contributing a Dictionary
 
-See [`spec/wsdict-v1.md`](spec/wsdict-v1.md) for the format reference and [`dicts/chrome.wsdict`](dicts/chrome.wsdict) for the reference implementation.
+1. Create a `.wsdict` file in `dicts/`
+2. Follow the spec in `spec/wsdict-v1.md`
+3. Test against the runtime
+4. Submit a PR
+
+### Reporting Issues
+
+1. Run diagnostics: `winscript --check-chrome`
+2. Test your script: `winscript --validate script.ws`
+3. Include error output and system info
+
+---
+
+## 📄 License
+
+MIT License — See [LICENSE](LICENSE) for details.
 
 ---
 
 <p align="center">
-  <strong>WinScript</strong> — because Windows deserved a scripting language.<br/>
-  <sub>Built with 🪟 for the Windows community.</sub>
+<strong>WinScript</strong> — because Windows deserved a scripting language.<br/>
+<sub>Built with 🪟 for the Windows community.</sub>
 </p>
