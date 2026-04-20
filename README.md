@@ -58,6 +58,11 @@ WinScript v2.0 brings massive improvements to the language, turning it into a co
   * **Loops**: Iterate with `repeat times`, `repeat while`, and `repeat with ... in`.
   * **Variables & Types**: Lexical scope stack (`global` / `local`) and strict runtime typing (`declare x as integer`).
   * **Arithmetic & Lists**: Added math operators (`+`, `-`, `*`, `/`), list literals (`[1, 2, 3]`), and more comparisons.
+* **Session Persistence** (`save session`, `load session`): Save and restore execution state across script runs.
+* **Interactive Debugger** (`--debug`): Step-through debugging with breakpoints, variable inspection, and watch expressions.
+* **Async/Await Support** (`async tell`, `await`): Execute tell blocks asynchronously and wait for completion.
+* **Type Analyzer**: Advanced type inference system with flow-sensitive typing and generic support.
+* **AppleScript Converter** (`--convert`): Convert AppleScript files to WinScript syntax.
 
 ---
 

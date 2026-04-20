@@ -47,6 +47,8 @@ from winscript.ast_nodes import (
     RepeatWithBlock,
     ListLiteral,
     ArithExpr,
+    SessionSaveStatement,
+    SessionLoadStatement,
 )
 from winscript.context import ExecutionContext
 from winscript.dicts.loader import DictLoader
@@ -62,6 +64,7 @@ from winscript.types import WSType
 
 
 from winscript.library import LibraryLoader
+from winscript.session import SessionManager
 
 class WinScriptRuntime:
     """
@@ -75,6 +78,7 @@ class WinScriptRuntime:
         self.dict_loader = DictLoader(extra_dict_paths)
         self.resolver = Resolver(self.dict_loader)
         self.dispatcher = Dispatcher()
+        self.session_manager = SessionManager()
 
     # ------------------------------------------------------------------
     # Public API
@@ -210,6 +214,10 @@ class WinScriptRuntime:
             self._exec_declare(stmt, context)
         elif isinstance(stmt, UsingStatement):
             pass
+        elif isinstance(stmt, SessionSaveStatement):
+            self._exec_session_save(stmt, context)
+        elif isinstance(stmt, SessionLoadStatement):
+            self._exec_session_load(stmt, context)
         elif isinstance(stmt, RepeatTimesBlock):
             self._exec_repeat_times(stmt, context)
         elif isinstance(stmt, RepeatWhileBlock):
@@ -437,6 +445,28 @@ class WinScriptRuntime:
                 )
             self._execute_statements(node.statements, context)
             iterations += 1
+
+    def _exec_session_save(self, node: SessionSaveStatement, context: ExecutionContext):
+        """Save the current execution context to a named session."""
+        # Collect backend states from dispatcher
+        backend_states = {}
+        for app_name, backend in self.dispatcher._backends.items():
+            if hasattr(backend, 'get_state'):
+                try:
+                    backend_states[app_name] = backend.get_state()
+                except Exception:
+                    pass
+        
+        self.session_manager.save_session(node.name, context, backend_states)
+
+    def _exec_session_load(self, node: SessionLoadStatement, context: ExecutionContext):
+        """Load a named session into the current execution context."""
+        session_data = self.session_manager.load_session(node.name, context)
+        
+        # Restore backend connections if possible
+        for app_name, state in session_data.get("backend_states", {}).items():
+            # Backend reconnection would happen here
+            pass
 
     def _exec_repeat_with(self, node: RepeatWithBlock, context: ExecutionContext):
         iterable = self._eval_expression(node.iterable_expr, context)

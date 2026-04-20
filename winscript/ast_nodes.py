@@ -134,5 +134,36 @@ class ListLiteral:
 @dataclass
 class ArithExpr:
     left: Any
-    operator: str          # "+" | "-" | "*" | "/"
+    operator: str  # "+" | "-" | "*" | "/"
     right: Any
+
+# Async/Await constructs
+@dataclass
+class AsyncBlock:
+    """Async tell block - runs in background without blocking."""
+    tell_block: TellBlock
+    statements: list = field(default_factory=list)  # statements after async block
+
+@dataclass
+class AwaitStatement:
+    """Wait for async operation(s) to complete."""
+    target: str | None = None  # None = await all, string = await specific
+
+@dataclass
+class ParallelBlock:
+    """Parallel tell blocks - run multiple operations concurrently."""
+    tell_blocks: list[TellBlock]
+
+@dataclass
+class PromiseVar:
+    """Reference to a promise/handle for async operations."""
+    name: str
+
+# Session management
+@dataclass
+class SessionSaveStatement:
+    name: str
+
+@dataclass
+class SessionLoadStatement:
+    name: str

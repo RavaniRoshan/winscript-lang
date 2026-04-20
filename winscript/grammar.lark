@@ -9,6 +9,9 @@ start: (_NL | statement)*
 // ---------------------------------------------------------------------------
 
 ?statement: tell_block
+          | async_tell
+          | await_stmt
+          | parallel_block
           | set_stmt
           | return_stmt
           | wait_stmt
@@ -20,6 +23,8 @@ start: (_NL | statement)*
           | scope_declaration
           | declare_statement
           | using_statement
+          | session_save
+          | session_load
           | function_call _NL
 
 // ---------------------------------------------------------------------------
@@ -94,6 +99,15 @@ declare_statement: "declare" IDENT "as" type_name _NL
 !type_name: "string" | "integer" | "decimal" | "boolean" | "list" | "dict" | "any"
 
 using_statement: "using" ESCAPED_STRING _NL
+
+// Session management
+session_save: "save" "session" ESCAPED_STRING _NL
+session_load: "load" "session" ESCAPED_STRING _NL
+
+// Async/Await constructs
+async_tell: "async" "tell" app_name ESCAPED_STRING? _NL statement* "end" "tell" _NL -> async_tell_block
+await_stmt: "await" IDENT? _NL -> await_statement
+parallel_block: "parallel" _NL tell_block+ "end" "parallel" _NL
 
 list_literal: "[" (expr ("," expr)*)? "]"
 

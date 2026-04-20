@@ -1,6 +1,14 @@
 from pathlib import Path
 from lark import Lark, Transformer, UnexpectedInput, Token
-from winscript.ast_nodes import *
+from winscript.ast_nodes import (
+    Script, TellBlock, SetStatement, ReturnStatement, WaitUntilStatement, 
+    WaitDurationStatement, TryBlock, IfStatement, CommandStatement, PropertyAccess,
+    ConcatExpr, Identifier, StringLiteral, NumberLiteral, BoolLiteral, Condition,
+    RepeatTimesBlock, RepeatWhileBlock, RepeatWithBlock, FunctionDef, FunctionCall,
+    ScopeDeclaration, DeclareStatement, UsingStatement, ListLiteral, ArithExpr,
+    SessionSaveStatement, SessionLoadStatement, AsyncBlock, AwaitStatement, ParallelBlock
+)
+from winscript.session import SessionManager
 from winscript.errors import WinScriptSyntaxError
 
 class WinScriptTransformer(Transformer):
@@ -168,6 +176,26 @@ class WinScriptTransformer(Transformer):
 
     def list_literal(self, items) -> ListLiteral:
         return ListLiteral(items=[x for x in items if not isinstance(x, Token)])
+
+    def session_save(self, items) -> SessionSaveStatement:
+        return SessionSaveStatement(name=str(items[0])[1:-1])
+
+    def session_load(self, items) -> SessionLoadStatement:
+        return SessionLoadStatement(name=str(items[0])[1:-1])
+
+    def async_tell_block(self, items):
+        # First item is app_name, rest are statements
+        app_name = items[0]
+        stmts = [item for item in items[1:] if not isinstance(item, Token)]
+        return AsyncBlock(tell_block=TellBlock(app_name=app_name, statements=stmts))
+
+    def await_statement(self, items):
+        target = str(items[0]) if items and not isinstance(items[0], Token) else None
+        return AwaitStatement(target=target)
+
+    def parallel_block(self, items):
+        tell_blocks = [item for item in items if isinstance(item, TellBlock)]
+        return ParallelBlock(tell_blocks=tell_blocks)
 
 
 def validate_v2(ast: Script) -> list[str]:
